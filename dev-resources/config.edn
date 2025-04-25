@@ -1,0 +1,14 @@
+;; export DB__CONNECTION__HOST=localhost
+;; export DB__CONNECTION__PORT=5432
+;; export DB__CONNECTION__DATABASE=starwars
+;; export DB__CONNECTION__USER=topham
+;; export DB__CONNECTION__PASSWORD=password
+{:db
+ {:type :postgres
+  :connection {:host     "OVERRIDE ME" ;; cprop will fill these in from props / env / etc.
+               :port     "OVERRIDE ME"
+               :database "OVERRIDE ME"
+               :user     "OVERRIDE ME"
+               :password "OVERRIDE ME"}
+  :pool {:maximum-pool-size 10
+         :minimum-idle 2}}}
