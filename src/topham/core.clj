@@ -36,7 +36,7 @@
    for a dimension like 'mars', generates: AND (mars = :mars OR mars IS NULL)"
   [dim]
   (str "AND (" dim " = :" dim
-       " OR "  dim " IS NULL) "))
+       " OR "  dim " IS NULL)"))
 
 (defn dims->predicates
   "return an inquery 'with-preds' flavored map of predicates
@@ -46,9 +46,10 @@
   [dims
    required-dims
    query]
-  (let [req-set   (set required-dims)]
+  (let [all-dims (distinct (concat dims required-dims))
+        req-set   (set required-dims)]
     (into {}
-          (for [dim dims
+          (for [dim all-dims
                 :when (contains? query dim)         ;; only add if query has this dim
                 :let [column  (dim->column dim)
                       clause  (if (req-set dim)
@@ -91,7 +92,9 @@
 
         sql-w-preds (q/with-preds
                       base
-                      (dims->predicates dims required-dims query)
+                      (dims->predicates dims
+                                        required-dims
+                                        query)
                       {:prefix "where"})
 
         sql-w-params (q/with-params sql-w-preds
