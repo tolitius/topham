@@ -9,13 +9,23 @@
             [mount.core :as mount :refer [defstate]]
             [cprop.core :as c]
             [hikari-cp.core :as hikari]
+            [inquery.core :as q]
             [next.jdbc :as jdbc]
             [next.jdbc.result-set :as rs]
             [camel-snake-kebab.core :as csk]
             [clojure.tools.logging :as log]
+            [topham.core :as t])
+  (:import  [org.postgresql.util PGobject]))
 
-            [topham.core :as t]
-            ))
+(defn ->jsonb [x]
+  (doto (PGobject.)
+    (.setType "jsonb")
+    (.setValue (json/write-value-as-string x))))
+
+(extend-protocol q/SqlParam
+  org.postgresql.util.PGobject
+  (to-sql-string [o]
+    (str "'" (.getValue o) "'::" (.getType o))))
 
 (def pool-config
   {:minimum-idle 2
