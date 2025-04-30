@@ -17,7 +17,9 @@
                               com.h2database/h2 {:mvn/version "1.4.195"}}}
            :test {:extra-paths ["test" "test/resources"]
                   :extra-deps {io.github.cognitect-labs/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git"
-                                                                     :sha "e7660458ce25bc4acb4ccc3e2415aae0a4907198"}}
+                                                                     :sha "e7660458ce25bc4acb4ccc3e2415aae0a4907198"}
+                               seancorfield/next.jdbc {:mvn/version "1.2.659"}
+                               com.h2database/h2 {:mvn/version "1.4.195"}}
                   :main-opts ["-m" "cognitect.test-runner"]
                   :exec-fn cognitect.test-runner.api/test}
            :repl {:extra-paths ["test" "test/resources"]
