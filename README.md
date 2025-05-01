@@ -24,7 +24,7 @@ partial dimensions are searched by queries that specify values for any/some key 
 
 among all matching candidates, topham prioritizes:
 
- * **alignment first**: a row must match the order/priority as well as a maximum number of dimensions (compared to other rows) in a query
+ * **alignment first**: a row must match the order/priority as well as a maximum number of dimensions (compared to other rows) that _are in a query_
  * **specificity second**: among matches, the row with the most defined fields (i.e., the highest **hamming weight** in its `topham` bitmask) is selected
 
 this top down, specificity aware approach is ideal for configuration resolution, rule engines, or any system where layered overrides and dimensional fallbacks are needed.
@@ -35,30 +35,69 @@ ships has been assigned to missions across the galaxy using dimensions: galaxy, 
 
 | galaxy      | star       | planet     | moon      | asteroid     | mission type | `topham` | ship              |
 |-------------|------------|------------|-----------|--------------|--------------|----------|-------------------|
-| Outer Rim   | Tatoo I    | Tatooine   | -         | -            | Patrol       | 11110    | **Millennium Falcon** |
-| Outer Rim   | Tatoo I    | -          | Jedha     | -            | Patrol       | 11010    | **Ghost**           |
-| Outer Rim   | -          | Tatooine   | -         | Polis Massa  | Patrol       | 10110    | **TIE Fighter**     |
-| -           | Tatoo I    | Tatooine   | -         | -            | Patrol       | 01110    | **X-Wing**          |
-| -           | -          | Tatooine   | -         | -            | Patrol       | 00110    | **Starfighter**     |
-| -           | -          | -          | -         | -            | Patrol       | 00000    | **Y-Wing**          |
+| Outer Rim   | Tatoo I    | Tatooine   | -         | -            | Patrol       | 11100    | **Millennium Falcon** |
+| Outer Rim   | Tatoo I    | -          | Jedha     | -            | Patrol       | 11010    | **Ghost**             |
+| Outer Rim   | -          | Tatooine   | -         | Polis Massa  | Patrol       | 10101    | **Slave I**           |
+| -           | Tatoo I    | Tatooine   | -         | -            | Patrol       | 01100    | **X-Wing**            |
+| -           | -          | Tatooine   | -         | -            | Patrol       | 00100    | **Starfighter**       |
+| Core        | -          | -          | Endor     | -            | Patrol       | 10010    | **Y-Wing**            |
+| Core        | -          | -          | -         | -            | Patrol       | 10000    | **TIE Fighter**       |
 
 🧭 looking for a closest known ship:
 
 ```clojure
-{:galaxy "Outer Rim", :star "Tatoo I", :planet "Tatooine"}
+{:galaxy "Outer Rim" :star "Tatoo I" :planet "Tatooine"}
 ```
-* selected ship: **Millennium Falcon**
-* _all_ its defined fields match the query
-* since it has the highest "presence" (topham = `11110`)
+it matches:
+| galaxy      | star       | planet     | moon      | asteroid     | mission type | `topham` | ship              |
+|-------------|------------|------------|-----------|--------------|--------------|----------|-------------------|
+| Outer Rim   | Tatoo I    | Tatooine   | -         | -            | Patrol       | 11100    | **Millennium Falcon** |
+| -           | Tatoo I    | Tatooine   | -         | -            | Patrol       | 01100    | **X-Wing**            |
+| -           | -          | Tatooine   | -         | -            | Patrol       | 00100    | **Starfighter**       |
 
-but
+* selected ship: **Millennium Falcon**
+* since it has the highest "presence" (topham = `11110`)
+* _all_ its defined fields match the query
+
+but, what if we don't know the planet?
 
 ```clojure
-{:asteroid "Polis Massa", :moon "Charon"}
+{:galaxy "Core" :star "Alderaan" :moon "Endor"}
 ```
-* selected ship: **TIE Fighter** (closest known ship)
+it matches both:
+| galaxy      | star       | planet     | moon      | asteroid     | mission type | `topham` | ship              |
+|-------------|------------|------------|-----------|--------------|--------------|----------|-------------------|
+| Core        | -          | -          | Endor     | -            | Patrol       | 10010    | **Y-Wing**            |
+| Core        | -          | -          | -         | -            | Patrol       | 10000    | **TIE Fighter**       |
+
+* selected ship: **Y-Wing** (closest known ship)
+* since has the highest "presence" (topham = `10010`)
 * _some_ its defined fields match the query
-* since it has the highest "presence" (topham = `10110`)
+* e.g. out of all the candidates, it has the most defined (2) matching dimensions
+
+from this examples you can see that "`-`" ("null"/"nothing" in the database) serves as a `wildcard`
+
+wildcards are used two ways:
+
+* when searching for a value that does not exist in the database
+* when matching a column value that is not given in the query
+
+in this next example
+both a "moon" and an "asteroid" are not given in a query, and hence would match a "nothing" value (a wildcard)<br/>
+a star is given, but is not present in the database, and hence a wildcard is used:
+
+```clojure
+{:galaxy "Core" :star "Alderaan"}
+```
+it only matches:
+| galaxy      | star       | planet     | moon      | asteroid     | mission type | `topham` | ship              |
+|-------------|------------|------------|-----------|--------------|--------------|----------|-------------------|
+| Core        | -          | -          | -         | -            | Patrol       | 10000    | **TIE Fighter**       |
+
+* selected ship: **TIE Fighter** (closest known ship)
+* since this is the only row with matching galaxy and wildcards for star, moon and asteroid
+* _some_ its defined fields match the query
+* its topham / "presence" is `10000`
 * and out of all the candidates, it has the most defined (1) matching dimensions
 
 ## license

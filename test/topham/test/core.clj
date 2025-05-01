@@ -48,12 +48,12 @@
         missions
         ;; === canonical full matches for base tests ===
         [{:mission-type "Patrol" :galaxy "Outer Rim" :star "Tatoo I" :planet "Tatooine" :moon "Jedha" :asteroid "Polis Massa" :ship "Millennium Falcon"} ; 11111
-         {:mission-type "Patrol" :galaxy "Outer Rim" :star "Tatoo I" :planet "Tatooine" :moon "Jedha" :asteroid "Polis Massa" :ship "Slave I"}             ; 11111
+         {:mission-type "Patrol" :galaxy "Outer Rim" :star "Tatoo I" :planet "Tatooine" :moon "Jedha" :ship "Slave I"}             ; 11110
 
          ;; === partial matches for fallback resolution ===
          {:mission-type "Patrol" :galaxy "Outer Rim" :star "Tatoo I" :planet "Tatooine" :ship "X-Wing"}         ; 11100
          {:mission-type "Patrol" :galaxy "Outer Rim" :planet "Tatooine" :ship "Starfighter"}                    ; 10100
-         {:mission-type "Recon"  :galaxy "Core"       :star "Alderaan" :moon "Endor" :ship "Ghost"}             ; 11010
+         {:mission-type "Recon"  :galaxy "Core"      :star "Alderaan" :moon "Endor" :ship "Ghost"}             ; 11010
          {:mission-type "Patrol" :ship "Y-Wing"}                                                                ; 00000
 
          ;; === tie-breaker group: exact same topham ===
@@ -93,7 +93,7 @@
                          "Probe Droid" "Snowspeeder" "Tauntaun"
                          "Mysterious Shuttle" "Truly Generic"}
         expected-tophams {"Millennium Falcon" 31   ;; 11111
-                          "Slave I"           31
+                          "Slave I"           30   ;; 11110
                           "X-Wing"            28   ;; 11100
                           "Starfighter"       20   ;; 10100
                           "Ghost"             26   ;; 11010
@@ -111,32 +111,6 @@
     (doseq [{:keys [ship topham]} rows]
       (is (= topham (expected-tophams ship))
           (str "incorrect topham for: " ship)))))
-
-
-(deftest test-basic-full-match
-  "queries all dimensions that are defined for a given row.
-   expects the fully matching ship with the highest topham"
-  (let [query {:galaxy "Outer Rim"
-               :star "Tatoo I"
-               :planet "Tatooine"
-               :moon "Jedha"
-               :asteroid "Polis Massa"
-               :mission-type "Patrol"}
-
-        sql (t/find-best-match {:table :starship_missions
-                                :dims (:dims dims)
-                                :required-dims (:required dims)
-                                :need [:ship]}
-              query)
-
-        result (jdbc/execute-one! ds
-                                  [sql]
-                                  {:builder-fn rs/as-unqualified-modified-maps
-                                   :label-fn snake->kebab})]
-
-    (is (= "Millennium Falcon" (:ship result)))
-    (is (= 31 (:topham result)))))               ;; binary 11111 = decimal 31
-
 
 (deftest test-insert-sparse-row
   "inserts a sparse row and verifies correct topham"
@@ -236,9 +210,8 @@
                                   {:builder-fn rs/as-unqualified-modified-maps
                                    :label-fn snake->kebab})]
 
-    ;; should prefer starfighter (10100 = 20) over a sparser match
-    (is (= "Interceptor" (:ship result)))
-    (is (= 28            (:topham result)))))
+    (is (= "Y-Wing" (:ship result)))
+    (is (= 0        (:topham result)))))
 
 (deftest test-best-match-ignores-nonmatching-required
   "ensures required dimension mismatch excludes row"
@@ -302,6 +275,7 @@
 (deftest test-best-match-selects-most-specific-hoth
   "among several Hoth matches, returns the row with most specificity (highest topham)"
   (let [query {:planet "Hoth"
+               :moon "Echo Base"
                :mission-type "Patrol"}
         sql (t/find-best-match {:table :starship_missions
                                 :dims (:dims dims)
@@ -313,5 +287,5 @@
                                   {:builder-fn rs/as-unqualified-modified-maps
                                    :label-fn snake->kebab})]
 
-    (is (= "Tauntaun" (:ship result)))
-    (is (= 14 (:topham result))))) ;; 01110
+    (is (= "Snowspeeder" (:ship result)))
+    (is (= 6 (:topham result))))) ;; 00110

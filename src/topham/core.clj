@@ -47,23 +47,22 @@
        " OR "  dim " IS NULL)"))
 
 (defn dims->predicates
-  "return an inquery 'with-preds' flavored map of predicates
-   * key   : a no arg fun that decides if this predicate is used
-   * value : an actual sql clause
-  both required and optional dimensions included in `query` are accounted for"
-  [dims
-   required-dims
-   query]
+  "return an inquery 'with-preds' flavored map of predicates.
+   all dims must be accounted for, if not in query, enforce NULL"
+  [dims required-dims query]
   (let [all-dims (distinct (concat dims required-dims))
-        req-set   (set required-dims)]
+        req-set (set required-dims)]
     (into {}
           (for [dim all-dims
-                :when (contains? query dim)         ;; only add if query has this dim
-                :let [column  (dim->column dim)
-                      clause  (if (req-set dim)
-                                (=clause column)    ;; required  => exact match
-                                (?clause column))]] ;; optional  => match it or NULL
-            [#(contains? query dim) clause]))))
+                :let [column (dim->column dim)
+                      clause (cond
+                               (contains? query dim) (if (req-set dim)
+                                                       (=clause column)
+                                                       (?clause column))
+
+                               :else (str "AND " column " IS NULL"))]]   ;; NOT in query => must be NULL
+            [(fn [] true) clause]))))
+
 
 (defn find-best-match
   "builds/returns SQL to find a best matching row
@@ -77,7 +76,10 @@
 
   returns: ready to roll SQL to find the best match"
 
-  [{:keys [table dims required-dims need]}
+  [{:keys [table
+           dims
+           required-dims
+           need]}
    query]
 
   ;; make sure required dims are in the query
@@ -107,7 +109,6 @@
                                            query))
 
         find-it (str sql-w-params " order by topham desc limit 1")]
-    (println "find-it:" find-it)
     find-it))
 
 
