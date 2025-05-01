@@ -103,34 +103,15 @@ it only matches:
 
 ## REPL it
 
-export local postgess intel:
-
-```bash
-$ env | grep CONN                                                                                                                                            (master ✔ )
-DB__CONNECTION__HOST=localhost
-DB__CONNECTION__PORT=5432
-DB__CONNECTION__USER=topham
-DB__CONNECTION__PASSWORD=<secret>
-DB__CONNECTION__DATABASE=hamming
-```
-
 ```
 $ make repl
 ```
 
 ```clojure
-dev=> (restart)
-;; => INFO  com.zaxxer.hikari.HikariDataSource - topham-pool - Starting...
-;; => INFO  com.zaxxer.hikari.pool.HikariPool - topham-pool - Added connection org.postgresql.jdbc.PgConnection@2552cb80
-;; => INFO  com.zaxxer.hikari.HikariDataSource - topham-pool - Start completed.
-;; => {:started ["#'dev/config" "#'dev/datasource"]}
-```
-
-```clojure
-=> (make-universe! datasource)
+=> (def universe (make-universe!))
 ;; => universe created. starships ready to rock.
 
-=> (show-missions datasource)
+=> (show-missions universe)
 ;; => -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ;; => | ID   | Galaxy       | Star       | Planet     | Moon       | Asteroid    | Mission Type | Topham         | Ship               | Payload                                           |
 ;; => -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -151,7 +132,7 @@ dev=> (restart)
 ```
 
 ```clojure
-dev=> (find-ship datasource {:planet "Hoth" :moon "Echo Base" :mission-type "Patrol"})
+dev=> (find-ship universe {:planet "Hoth" :moon "Echo Base" :mission-type "Patrol"})
 
 ;; => looking for a ship closest to: {:planet "Hoth", :moon "Echo Base", :mission-type "Patrol"}
 
@@ -162,6 +143,31 @@ dev=> (find-ship datasource {:planet "Hoth" :moon "Echo Base" :mission-type "Pat
 ;; => | -            | -          | Hoth       | Echo Base  | -          | -            | 00110 (6)      | Snowspeeder        | {"id": "P42", "crew": 2, "duration": ... |
 ;; => --------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ;; => dimensions matched: [:planet :moon]
+```
+
+### postgres
+
+by default dev env is on H2 (in memory db)<br/>
+but.. Postgres love is real.
+
+in order to use it before starting the REPL, export postgess intel:
+
+```bash
+$ env | grep CONN
+DB__CONNECTION__HOST=localhost
+DB__CONNECTION__PORT=5432
+DB__CONNECTION__USER=topham
+DB__CONNECTION__PASSWORD=<secret>
+DB__CONNECTION__DATABASE=hamming
+```
+
+```
+$ make repl
+```
+
+```clojure
+=> (def universe (make-universe! :in :postgres))
+;; => universe created. starships ready to rock.
 ```
 
 ## license

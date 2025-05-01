@@ -53,7 +53,7 @@
   (when datasource
     (hikari/close-datasource datasource)))
 
-(defn make-datasource [{:keys [connection pool]}]
+(defn connect-to-postgres [{:keys [connection pool]}]
   (let [{:keys [host port database user password]} connection
         hikari-config (merge pool-config
                              (select-keys pool [:minimum-idle
@@ -67,18 +67,10 @@
                               :password password})]
     (hikari/make-datasource hikari-config)))
 
-
-(defstate config
-  :start (c/load-config)
-  :stop :stopped)
-
-(defstate datasource
-  :start (make-datasource (-> config :db))
-  :stop (close datasource))
-
-(defn restart []
-  (mount/stop)
-  (mount/start))
+(defn connect-to-h2 []
+  (jdbc/get-datasource {:dbtype "h2:mem"
+                        :dbname "topham_test"
+                        :shutdown true}))
 
 
 
@@ -90,63 +82,84 @@
   (when k
     (clojure.string/replace (-> k name s/lower-case) "_" "-")))
 
-(defn make-universe! [ds]
-  (jdbc/execute! ds ["drop table starship_missions"])
-  (jdbc/execute! ds ["create table starship_missions (id           bigserial PRIMARY KEY,
+(defn connect-to-universe [db-type]
+  (case db-type
+    :postgres   (let [ds (connect-to-postgres (-> (c/load-config) :db))]
+                  (jdbc/execute! ds ["drop table if exists starship_missions"])
+                  (jdbc/execute! ds ["create table starship_missions (id           bigserial PRIMARY KEY,
 
-                                                      -- dimensional columns -----------------------------
-                                                      galaxy       text,
-                                                      star         text,
-                                                      planet       text,
-                                                      moon         text,
-                                                      asteroid     text,
-                                                      mission_type text     not null,          -- required
+                                                                      -- dimensional columns -----------------------------
+                                                                      galaxy       text,
+                                                                      star         text,
+                                                                      planet       text,
+                                                                      moon         text,
+                                                                      asteroid     text,
+                                                                      mission_type text     not null,          -- required
 
-                                                      -- other data --------------------------------------
-                                                      ship         text     not null,
-                                                      payload      jsonb    not null,    -- mission intel
-                                                      topham       integer  not null,    -- computed bit-mask
+                                                                      -- other data --------------------------------------
+                                                                      ship         text     not null,
+                                                                      payload      jsonb    not null,    -- mission intel
+                                                                      topham       integer  not null,    -- computed bit-mask
 
-                                                      -- bookkeeping -------------------------------------
-                                                      created_at   timestamptz not null default now(),
-                                                      updated_at   timestamptz not null default now());"])
+                                                                      -- bookkeeping -------------------------------------
+                                                                      created_at   timestamptz not null default now(),
+                                                                      updated_at   timestamptz not null default now());"])
+                  ds)
 
-  (let [insert! (fn [row]
+    :h2         (let [ds (connect-to-h2)]
+                  (jdbc/execute! ds ["drop table if exists starship_missions"])
+                  (jdbc/execute! ds ["create table starship_missions (
+                                      id identity primary key,
+                                      galaxy       varchar,
+                                      star         varchar,
+                                      planet       varchar,
+                                      moon         varchar,
+                                      asteroid     varchar,
+                                      mission_type varchar not null,
+                                      ship         varchar not null,
+                                      payload      clob,
+                                      topham       int not null);"])
+                  ds)))
+
+(defn make-universe! [& {:keys [in]
+                         :or   {in :h2}}]
+  (let [ds (connect-to-universe in)
+        insert! (fn [row]
                   (let [sql (t/make-insert-row dims :starship_missions row)]
                     (jdbc/execute! ds [sql])))
+        payload (cond-> {:id "P42"
+                         :objective "Monitor imperial activity"
+                         :crew 2
+                         :duration 7
+                         :priority "medium"}
+                  (= in :postgres) ->jsonb
+                  (= in :h2)       json/write-value-as-string)
 
-        missions
-        ;; === canonical full matches for base tests ===
-        [{:mission-type "Patrol" :galaxy "Outer Rim" :star "Tatoo I" :planet "Tatooine" :moon "Jedha" :asteroid "Polis Massa" :ship "Millennium Falcon" :payload "{}"} ; 11111
-         {:mission-type "Patrol" :galaxy "Outer Rim" :star "Tatoo I" :planet "Tatooine" :moon "Jedha" :ship "Slave I" :payload "{}"}             ; 11110
+        missions [
+                  {:mission-type "Patrol" :galaxy "Outer Rim" :star "Tatoo I" :planet "Tatooine" :moon "Jedha" :asteroid "Polis Massa" :ship "Millennium Falcon" :payload "{}"}
+                  {:mission-type "Patrol" :galaxy "Outer Rim" :star "Tatoo I" :planet "Tatooine" :moon "Jedha" :ship "Slave I" :payload "{}"}
 
-         ;; === partial matches for fallback resolution ===
-         {:mission-type "Patrol" :galaxy "Outer Rim" :star "Tatoo I" :planet "Tatooine" :ship "X-Wing" :payload "{}"}         ; 11100
-         {:mission-type "Patrol" :galaxy "Outer Rim" :planet "Tatooine" :ship "Starfighter" :payload "{}"}                    ; 10100
-         {:mission-type "Recon"  :galaxy "Core"      :star "Alderaan" :moon "Endor" :ship "Ghost" :payload "{}"}              ; 11010
-         {:mission-type "Patrol" :ship "Y-Wing" :payload "{}"}                                                                ; 00000
+                  {:mission-type "Patrol" :galaxy "Outer Rim" :star "Tatoo I" :planet "Tatooine" :ship "X-Wing" :payload "{}"}
+                  {:mission-type "Patrol" :galaxy "Outer Rim" :planet "Tatooine" :ship "Starfighter" :payload "{}"}
+                  {:mission-type "Recon"  :galaxy "Core"      :star "Alderaan" :moon "Endor" :ship "Ghost" :payload "{}"}
+                  {:mission-type "Patrol" :ship "Y-Wing" :payload "{}"}
 
-         ;; === tie-breaker group: exact same topham ===
-         {:mission-type "Patrol" :galaxy "Outer Rim" :star "Tatoo I" :planet "Scarif" :ship "Interceptor" :payload "{}"}      ; 11100
-         {:mission-type "Patrol" :galaxy "Outer Rim" :star "Tatoo I" :planet "Scarif" :ship "TIE Fighter" :payload "{}"}      ; 11100
+                  {:mission-type "Patrol" :galaxy "Outer Rim" :star "Tatoo I" :planet "Scarif" :ship "Interceptor" :payload "{}"}
+                  {:mission-type "Patrol" :galaxy "Outer Rim" :star "Tatoo I" :planet "Scarif" :ship "TIE Fighter" :payload "{}"}
 
-         ;; === specificity test: hoth rows ===
-         {:mission-type "Patrol" :planet "Hoth" :ship "Probe Droid" :payload "{}"}                                            ; 00100 = 4
-         {:mission-type "Patrol" :planet "Hoth" :moon "Echo Base" :ship "Snowspeeder" :payload (->jsonb {:id "P42"
-                                                                                                         :objective "Monitor imperial activity"
-                                                                                                         :crew 2
-                                                                                                         :duration 7
-                                                                                                         :priority "medium"})}  ; 00110 = 6
-         {:mission-type "Patrol" :planet "Hoth" :moon "Echo Base" :star "Ilum" :ship "Tauntaun" :payload "{}"}  ; 01110 = 14
+                  {:mission-type "Patrol" :planet "Hoth" :ship "Probe Droid" :payload "{}"}
+                  {:mission-type "Patrol" :planet "Hoth" :moon "Echo Base" :ship "Snowspeeder" :payload payload}
+                  {:mission-type "Patrol" :planet "Hoth" :moon "Echo Base" :star "Ilum" :ship "Tauntaun" :payload "{}"}
 
-         ;; === fallback test rows ===
-         {:mission-type "Patrol" :galaxy "Unknown" :ship "Mysterious Shuttle" :payload "{}"}            ; 10000
-         {:mission-type "Patrol" :ship "Truly Generic" :payload "{}"}]]                                 ; 00000
+                  {:mission-type "Patrol" :galaxy "Unknown" :ship "Mysterious Shuttle" :payload "{}"}
+                  {:mission-type "Patrol" :ship "Truly Generic" :payload "{}"}
+                  ]]
 
     (doseq [row missions]
-      (insert! row)))
+      (insert! row))
 
-  (println "universe created. starships ready to rock."))
+    (println "universe created. starships ready to rock.")
+    ds))
 
 (defn int->binary-string [n length]
   (let [bin-str (Integer/toBinaryString n)
@@ -233,6 +246,9 @@
                                                        "")))))
       (println "no matching ship found for the given dimensions"))))
 
-;; (make-universe! datasource)
-;; (show-missions datasource)
-;; (find-ship datasource {:planet "Hoth" :moon "Echo Base" :mission-type "Patrol"})
+;; (def universe (make-universe!))
+;; OR
+;; (def universe (make-universe! :in :postgres))
+
+;; (show-missions universe)
+;; (find-ship universe {:planet "Hoth" :moon "Echo Base" :mission-type "Patrol"})
