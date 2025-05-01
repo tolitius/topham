@@ -6,11 +6,12 @@
 * enrich it with "`topham`": _ordered_ hamming weight bits
 * given an arbitrary set of dimensions, find the best match
 
-[![Clojars Project](https://clojars.org/tolitius/topham/latest-version.svg)](http://clojars.org/tolitius/topham)
+[![Clojars Project](https://img.shields.io/clojars/v/com.tolitius/topham.svg)](https://clojars.org/com.tolitius/topham)
 
 - [what is it](#what-is-it)
   - [matching how ✨](#matching-how-)
   - [example: find a spacecraft 🛸](#example-find-a-spacecraft-)
+- [repl it](#repl-it)
 - [license](#license)
 
 ## what is it
@@ -99,6 +100,69 @@ it only matches:
 * _some_ its defined fields match the query
 * its topham / "presence" is `10000`
 * and out of all the candidates, it has the most defined (1) matching dimensions
+
+## REPL it
+
+export local postgess intel:
+
+```bash
+$ env | grep CONN                                                                                                                                            (master ✔ )
+DB__CONNECTION__HOST=localhost
+DB__CONNECTION__PORT=5432
+DB__CONNECTION__USER=topham
+DB__CONNECTION__PASSWORD=<secret>
+DB__CONNECTION__DATABASE=hamming
+```
+
+```
+$ make repl
+```
+
+```clojure
+dev=> (restart)
+;; => INFO  com.zaxxer.hikari.HikariDataSource - topham-pool - Starting...
+;; => INFO  com.zaxxer.hikari.pool.HikariPool - topham-pool - Added connection org.postgresql.jdbc.PgConnection@2552cb80
+;; => INFO  com.zaxxer.hikari.HikariDataSource - topham-pool - Start completed.
+;; => {:started ["#'dev/config" "#'dev/datasource"]}
+```
+
+```clojure
+=> (make-universe! datasource)
+;; => universe created. starships ready to rock.
+
+=> (show-missions datasource)
+;; => -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+;; => | ID   | Galaxy       | Star       | Planet     | Moon       | Asteroid    | Mission Type | Topham         | Ship               | Payload                                           |
+;; => -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+;; => | 1    | Outer Rim    | Tatoo I    | Tatooine   | Jedha      | Polis Massa | Patrol       | 11111 (31)     | Millennium Falcon  | {}                                                |
+;; => | 2    | Outer Rim    | Tatoo I    | Tatooine   | Jedha      | -           | Patrol       | 11110 (30)     | Slave I            | {}                                                |
+;; => | 3    | Outer Rim    | Tatoo I    | Tatooine   | -          | -           | Patrol       | 11100 (28)     | X-Wing             | {}                                                |
+;; => | 4    | Outer Rim    | -          | Tatooine   | -          | -           | Patrol       | 10100 (20)     | Starfighter        | {}                                                |
+;; => | 5    | Core         | Alderaan   | -          | Endor      | -           | Recon        | 11010 (26)     | Ghost              | {}                                                |
+;; => | 6    | -            | -          | -          | -          | -           | Patrol       | 00000 (0)      | Y-Wing             | {}                                                |
+;; => | 7    | Outer Rim    | Tatoo I    | Scarif     | -          | -           | Patrol       | 11100 (28)     | Interceptor        | {}                                                |
+;; => | 8    | Outer Rim    | Tatoo I    | Scarif     | -          | -           | Patrol       | 11100 (28)     | TIE Fighter        | {}                                                |
+;; => | 9    | -            | -          | Hoth       | -          | -           | Patrol       | 00100 (4)      | Probe Droid        | {}                                                |
+;; => | 10   | -            | -          | Hoth       | Echo Base  | -           | Patrol       | 00110 (6)      | Snowspeeder        | {"id": "P42", "crew": 2, "duration": 7, "priori...|
+;; => | 11   | -            | Ilum       | Hoth       | Echo Base  | -           | Patrol       | 01110 (14)     | Tauntaun           | {}                                                |
+;; => | 12   | Unknown      | -          | -          | -          | -           | Patrol       | 10000 (16)     | Mysterious Shuttle | {}                                                |
+;; => | 13   | -            | -          | -          | -          | -           | Patrol       | 00000 (0)      | Truly Generic      | {}                                                |
+;; => -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+```
+
+```clojure
+dev=> (find-ship datasource {:planet "Hoth" :moon "Echo Base" :mission-type "Patrol"})
+
+;; => looking for a ship closest to: {:planet "Hoth", :moon "Echo Base", :mission-type "Patrol"}
+
+;; => found closest ship:
+;; => --------------------------------------------------------------------------------------------------------------------------------------------------------------------
+;; => | Galaxy       | Star       | Planet     | Moon       | Asteroid   | Mission Type | Topham         | Ship               | Payload                                  |
+;; => --------------------------------------------------------------------------------------------------------------------------------------------------------------------
+;; => | -            | -          | Hoth       | Echo Base  | -          | -            | 00110 (6)      | Snowspeeder        | {"id": "P42", "crew": 2, "duration": ... |
+;; => --------------------------------------------------------------------------------------------------------------------------------------------------------------------
+;; => dimensions matched: [:planet :moon]
+```
 
 ## license
 

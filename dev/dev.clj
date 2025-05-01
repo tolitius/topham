@@ -146,7 +146,7 @@
     (doseq [row missions]
       (insert! row)))
 
-  (println "universe created with starships ready for missions"))
+  (println "universe created. starships ready to rock."))
 
 (defn int->binary-string [n length]
   (let [bin-str (Integer/toBinaryString n)
@@ -227,10 +227,10 @@
                                payload-str))
                            "-")))
         (println separator)
-        (println "dimension matches: " (apply str (for [i (range dim-count)]
-                                                    (if (= (nth topham-binary i) \1)
-                                                      (str (nth (:dims dims) i) " ")
-                                                      "")))))
+        (println "dimensions matched: " (apply str (for [i (range dim-count)]
+                                                     (if (= (nth topham-binary i) \1)
+                                                       (str (nth (:dims dims) i) " ")
+                                                       "")))))
       (println "no matching ship found for the given dimensions"))))
 
 ;; (make-universe! datasource)
