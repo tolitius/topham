@@ -26,12 +26,14 @@
       (throw (ex-info "this dimension name has sql'wise/column unsafe characters"
                      {:dimension dim
                       :column column})))))
+
 (defn table->sql
   [table]
   (let [t (name table)]
-    (when-not (re-matches #"^[A-Za-z0-9_]+$" t)
+    (when-not (re-matches #"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$" t)
       (throw (ex-info "unsafe table name" {:table table})))
     t))
+
 
 (defn =clause [dim]
   "create a sql condition for a required dimension
