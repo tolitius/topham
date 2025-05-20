@@ -1,5 +1,6 @@
 (ns topham.core
   (:require [clojure.string :as s]
+            [clojure.set :as sets]
             [inquery.core :as q]))
 
 (defn make-topham [dimensions intel]
@@ -66,6 +67,48 @@
             [(fn [] true) clause]))))
 
 
+(defn- valid-param-type? [v]
+  (or (nil? v)
+      (string? v)
+      (number? v)
+      (boolean? v)
+      (and (map? v) (contains? v :as))       ;; ":as:" is an inqeury tag
+      (satisfies? inquery.core/SqlParam v))) ;; optional: allow e.g. PGobject etc. if protocol is implemented
+
+(defn- validate-query-types
+  "ensures all query values are either scalar,
+   or tagged with {:as ...} for explicit substitution"
+  [query]
+  (doseq [[k v] query
+          :when (not (valid-param-type? v))]
+    (throw (ex-info "invalid query param type"
+                    {:key k
+                     :value v
+                     :hint "must be scalar, or wrapped with {:as ...} as per: https://github.com/tolitius/inquery?tab=readme-ov-file#escaping"}))))
+
+(defn- validate-query
+  "ensures query contains all required dimensions, and only expected keys
+   throws otherwise"
+  [{:keys [dims required-dims]}
+   query]
+  (let [allowed-keys (set (concat dims required-dims))
+        query-keys   (set (keys query))
+
+        missing      (filterv #(nil? (query %))
+                              required-dims)
+        extras       (into [] (sets/difference query-keys
+                                               allowed-keys))]
+
+    (when (seq missing)
+      (throw (ex-info "query is missing required dimensions"
+                      {:missing missing})))
+
+    (when (seq extras)
+      (throw (ex-info "query contains unexpected keys"
+                      {:unexpected extras})))
+
+    (validate-query-types query)))
+
 (defn find-best-match
   "builds/returns SQL to find a best matching row
 
@@ -81,13 +124,10 @@
   [{:keys [table
            dims
            required-dims
-           need]}
+           need] :as schema}
    query]
 
-  ;; make sure required dims are in the query
-  (doseq [d required-dims
-          :when (nil? (query d))]
-    (throw (ex-info "query is missing required dimension" {:dim d})))
+  (validate-query schema query)
 
   (let [all-cols (concat dims
                          required-dims
